@@ -68,7 +68,7 @@ class Stack {
 };
 
 PtracerThread::PtracerThread(const std::function<int()>& func) : child_pid_(0) {
-  stack_ = std::make_unique<Stack>(128*PAGE_SIZE);
+  stack_ = std::make_unique<Stack>(PTHREAD_STACK_MIN);
   if (stack_->top() == nullptr) {
     MEM_LOG_ALWAYS_FATAL("failed to mmap child stack: %s", strerror(errno));
   }
