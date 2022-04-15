@@ -244,9 +244,7 @@ TEST_F(MemunreachableTest, log) {
 
 TEST_F(MemunreachableTest, notdumpable) {
   if (getuid() == 0) {
-    // TODO(ccross): make this a skipped test when gtest supports them
-    printf("[ SKIP     ] Not testable when running as root\n");
-    return;
+    GTEST_SKIP() << "Not testable when running as root";
   }
 
   ASSERT_EQ(0, prctl(PR_SET_DUMPABLE, 0));
