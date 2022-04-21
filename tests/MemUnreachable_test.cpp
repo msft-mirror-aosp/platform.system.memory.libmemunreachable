@@ -19,6 +19,8 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 
+#include <android-base/test_utils.h>
+
 #include <gtest/gtest.h>
 
 #include <memunreachable/memunreachable.h>
@@ -54,6 +56,8 @@ static void Ref(void** ptr) {
 class MemunreachableTest : public ::testing::Test {
  protected:
   virtual void SetUp() {
+    // HWASan does not support malloc_disable, which is required by memunreachable.
+    SKIP_WITH_HWASAN;
     CleanStack(8192);
     CleanTcache();
   }
