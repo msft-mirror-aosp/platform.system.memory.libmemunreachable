@@ -61,7 +61,9 @@ cc_test {
         "tests/MemUnreachable_test.cpp",
     ],
     shared_libs: ["libmemunreachable"],
-
+    header_libs: [
+        "libbase_headers",
+    ],
     test_suites: ["device-tests"],
 }
 
@@ -99,7 +101,9 @@ cc_test {
             enabled: false,
         },
     },
-
+    header_libs: [
+        "libbase_headers",
+    ],
     test_suites: ["device-tests"],
 }
 
