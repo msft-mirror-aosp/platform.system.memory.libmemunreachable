@@ -51,6 +51,13 @@ cc_library {
     export_include_dirs: ["include"],
     local_include_dirs: ["include"],
     version_script: "libmemunreachable.map",
+
+    static: {
+        apex_available: [
+            "//apex_available:platform",
+            "com.android.runtime",
+        ],
+    },
 }
 
 // Integration test that runs against the public API of libmemunreachable
