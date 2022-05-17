@@ -48,6 +48,9 @@ cc_library {
         "libc_malloc_debug_backtrace",
         "libprocinfo",
     ],
+    header_libs: [
+        "libgtest_prod_headers",
+    ],
     export_include_dirs: ["include"],
     local_include_dirs: ["include"],
     version_script: "libmemunreachable.map",
@@ -73,6 +76,7 @@ cc_test {
     host_supported: true,
     srcs: [
         "tests/Allocator_test.cpp",
+        "tests/AtomicState_test.cpp",
         "tests/HeapWalker_test.cpp",
         "tests/LeakFolding_test.cpp",
     ],
