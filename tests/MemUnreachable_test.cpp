@@ -19,8 +19,6 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 
-#include <android-base/test_utils.h>
-
 #include <gtest/gtest.h>
 
 #include <memunreachable/memunreachable.h>
@@ -56,8 +54,6 @@ static void Ref(void** ptr) {
 class MemunreachableTest : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    // HWASan does not support malloc_disable, which is required by memunreachable.
-    SKIP_WITH_HWASAN;
     CleanStack(8192);
     CleanTcache();
   }
@@ -248,7 +244,9 @@ TEST_F(MemunreachableTest, log) {
 
 TEST_F(MemunreachableTest, notdumpable) {
   if (getuid() == 0) {
-    GTEST_SKIP() << "Not testable when running as root";
+    // TODO(ccross): make this a skipped test when gtest supports them
+    printf("[ SKIP     ] Not testable when running as root\n");
+    return;
   }
 
   ASSERT_EQ(0, prctl(PR_SET_DUMPABLE, 0));
