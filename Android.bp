@@ -87,7 +87,11 @@ cc_test {
         "tests/HeapWalker_test.cpp",
         "tests/LeakFolding_test.cpp",
     ],
-
+    tidy_checks: [
+        // Ignore memory leaks after ASSERT_NE in DisableMalloc_test.cpp.
+        "-clang-analyzer-cplusplus.NewDeleteLeaks",
+        "-clang-analyzer-unix.Malloc",
+    ],
     target: {
         android: {
             srcs: [
