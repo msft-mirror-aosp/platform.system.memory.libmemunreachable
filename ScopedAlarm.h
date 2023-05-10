@@ -29,10 +29,9 @@ class ScopedAlarm {
  public:
   ScopedAlarm(std::chrono::microseconds us, std::function<void()> func) {
     func_ = func;
-    struct sigaction oldact {};
     struct sigaction act {};
     act.sa_handler = [](int) { ScopedAlarm::func_(); };
-    sigaction(SIGALRM, &act, &oldact);
+    sigaction(SIGALRM, &act, &old_act_);
 
     std::chrono::seconds s = std::chrono::duration_cast<std::chrono::seconds>(us);
     itimerval t = itimerval{};
@@ -43,13 +42,12 @@ class ScopedAlarm {
   ~ScopedAlarm() {
     itimerval t = itimerval{};
     setitimer(ITIMER_REAL, &t, NULL);
-    struct sigaction act {};
-    act.sa_handler = SIG_DFL;
-    sigaction(SIGALRM, &act, NULL);
+    sigaction(SIGALRM, &old_act_, NULL);
   }
 
  private:
   static std::function<void()> func_;
+  struct sigaction old_act_;
 };
 
 }  // namespace android
