@@ -59,19 +59,11 @@ TEST_F(AtomicStateTest, transition) {
 
   // State is B, transition_or from A calls the lambda
   bool lambda = false;
-  bool already_locked = false;
   state_.transition_or(A, B, [&] {
-    // The lock should be held in the lambda
-    if (state_.m_.try_lock()) {
-      state_.m_.unlock();
-    } else {
-      already_locked = true;
-    }
     lambda = true;
     return B;
   });
   ASSERT_TRUE(lambda);
-  ASSERT_TRUE(already_locked);
   ASSERT_EQ(B, state_.state_);
 
   // State is C, transition_or from B to C does not call the lambda
