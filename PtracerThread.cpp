@@ -42,7 +42,9 @@ class Stack {
   explicit Stack(size_t size) : size_(size) {
     int prot = PROT_READ | PROT_WRITE;
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-    page_size_ = sysconf(_SC_PAGE_SIZE);
+    page_size_ = getpagesize();
+    // Round up size to page_size
+    size_ = (size_ + (page_size_ - 1)) & ~(page_size_ - 1);
     size_ += page_size_ * 2;  // guard pages
     base_ = mmap(NULL, size_, prot, flags, -1, 0);
     if (base_ == MAP_FAILED) {
@@ -68,7 +70,7 @@ class Stack {
 };
 
 PtracerThread::PtracerThread(const std::function<int()>& func) : child_pid_(0) {
-  stack_ = std::make_unique<Stack>(128*PAGE_SIZE);
+  stack_ = std::make_unique<Stack>(512 * 1024);  // 512 kB
   if (stack_->top() == nullptr) {
     MEM_LOG_ALWAYS_FATAL("failed to mmap child stack: %s", strerror(errno));
   }
