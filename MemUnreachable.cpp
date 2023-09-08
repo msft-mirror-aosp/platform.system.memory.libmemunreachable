@@ -245,7 +245,9 @@ bool MemUnreachable::ClassifyMappings(const allocator::vector<Mapping>& mappings
     }
 
     const allocator::string mapping_name{it->name, allocator_};
-    if (mapping_name == "[anon:.bss]") {
+    if (mapping_name == "[anon:libmemunreachable stack]") {
+      // the ptracer thread's stack, ignore it.
+    } else if (mapping_name == "[anon:.bss]") {
       // named .bss section
       globals_mappings.emplace_back(*it);
     } else if (mapping_name == current_lib) {
