@@ -61,7 +61,6 @@ static constexpr size_t kMaxBucketAllocationSize = kChunkSize / 4;
 static constexpr size_t kMinBucketAllocationSize = 8;
 static constexpr unsigned int kNumBuckets =
     const_log2(kMaxBucketAllocationSize) - const_log2(kMinBucketAllocationSize) + 1;
-static constexpr unsigned int kUsablePagesPerChunk = kUsableChunkSize / kPageSize;
 
 std::atomic<int> heap_count;
 
@@ -192,10 +191,6 @@ class Chunk {
   unsigned int max_allocations_;    // maximum number of allocations in the chunk
   unsigned int first_free_bitmap_;  // index into bitmap for first non-full entry
   unsigned int free_count_;         // number of available allocations
-  unsigned int frees_since_purge_;  // number of calls to Free since last Purge
-
-  // bitmap of pages that have been dirtied
-  uint32_t dirty_pages_[div_round_up(kUsablePagesPerChunk, 32)];
 
   // bitmap of free allocations.
   uint32_t free_bitmap_[kUsableChunkSize / kMinBucketAllocationSize / 32];
@@ -234,9 +229,7 @@ Chunk::Chunk(HeapImpl* heap, int bucket)
       allocation_size_(bucket_to_size(bucket)),
       max_allocations_(kUsableChunkSize / allocation_size_),
       first_free_bitmap_(0),
-      free_count_(max_allocations_),
-      frees_since_purge_(0) {
-  memset(dirty_pages_, 0, sizeof(dirty_pages_));
+      free_count_(max_allocations_) {
   memset(free_bitmap_, 0xff, sizeof(free_bitmap_));
 }
 
@@ -255,10 +248,6 @@ void* Chunk::Alloc() {
   free_bitmap_[i] &= ~(1U << bit);
   unsigned int n = i * 32 + bit;
   assert(n < max_allocations_);
-
-  unsigned int page = n * allocation_size_ / kPageSize;
-  assert(page / 32 < arraysize(dirty_pages_));
-  dirty_pages_[page / 32] |= 1U << (page % 32);
 
   free_count_--;
   if (free_count_ == 0) {
@@ -290,16 +279,6 @@ void Chunk::Free(void* ptr) {
   } else {
     // TODO(ccross): move down free list if necessary
   }
-
-  if (frees_since_purge_++ * allocation_size_ > 16 * kPageSize) {
-    Purge();
-  }
-}
-
-void Chunk::Purge() {
-  frees_since_purge_ = 0;
-
-  // unsigned int allocsPerPage = kPageSize / allocation_size_;
 }
 
 // Override new operator on HeapImpl to use mmap to allocate a page
