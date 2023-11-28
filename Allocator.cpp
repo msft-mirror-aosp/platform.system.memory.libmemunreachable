@@ -50,10 +50,6 @@ constexpr size_t const_log2(size_t n, size_t p = 0) {
   return (n <= 1) ? p : const_log2(n / 2, p + 1);
 }
 
-constexpr unsigned int div_round_up(unsigned int x, unsigned int y) {
-  return (x + y - 1) / y;
-}
-
 static constexpr size_t kPageSize = 4096;
 static constexpr size_t kChunkSize = 256 * 1024;
 static constexpr size_t kUsableChunkSize = kChunkSize - kPageSize;
@@ -61,7 +57,6 @@ static constexpr size_t kMaxBucketAllocationSize = kChunkSize / 4;
 static constexpr size_t kMinBucketAllocationSize = 8;
 static constexpr unsigned int kNumBuckets =
     const_log2(kMaxBucketAllocationSize) - const_log2(kMinBucketAllocationSize) + 1;
-static constexpr unsigned int kUsablePagesPerChunk = kUsableChunkSize / kPageSize;
 
 std::atomic<int> heap_count;
 
@@ -170,7 +165,6 @@ class Chunk {
 
   void* Alloc();
   void Free(void* ptr);
-  void Purge();
   bool Empty();
 
   static Chunk* ptr_to_chunk(void* ptr) {
@@ -192,21 +186,19 @@ class Chunk {
   unsigned int max_allocations_;    // maximum number of allocations in the chunk
   unsigned int first_free_bitmap_;  // index into bitmap for first non-full entry
   unsigned int free_count_;         // number of available allocations
-  unsigned int frees_since_purge_;  // number of calls to Free since last Purge
-
-  // bitmap of pages that have been dirtied
-  uint32_t dirty_pages_[div_round_up(kUsablePagesPerChunk, 32)];
 
   // bitmap of free allocations.
   uint32_t free_bitmap_[kUsableChunkSize / kMinBucketAllocationSize / 32];
 
-  char data_[0];
+  std::max_align_t data_[0];
 
   unsigned int ptr_to_n(void* ptr) {
     ptrdiff_t offset = reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(data_);
     return offset / allocation_size_;
   }
-  void* n_to_ptr(unsigned int n) { return data_ + n * allocation_size_; }
+  void* n_to_ptr(unsigned int n) {
+    return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(data_) + n * allocation_size_);
+  }
 };
 static_assert(sizeof(Chunk) <= kPageSize, "header must fit in page");
 
@@ -234,9 +226,7 @@ Chunk::Chunk(HeapImpl* heap, int bucket)
       allocation_size_(bucket_to_size(bucket)),
       max_allocations_(kUsableChunkSize / allocation_size_),
       first_free_bitmap_(0),
-      free_count_(max_allocations_),
-      frees_since_purge_(0) {
-  memset(dirty_pages_, 0, sizeof(dirty_pages_));
+      free_count_(max_allocations_) {
   memset(free_bitmap_, 0xff, sizeof(free_bitmap_));
 }
 
@@ -255,10 +245,6 @@ void* Chunk::Alloc() {
   free_bitmap_[i] &= ~(1U << bit);
   unsigned int n = i * 32 + bit;
   assert(n < max_allocations_);
-
-  unsigned int page = n * allocation_size_ / kPageSize;
-  assert(page / 32 < arraysize(dirty_pages_));
-  dirty_pages_[page / 32] |= 1U << (page % 32);
 
   free_count_--;
   if (free_count_ == 0) {
@@ -290,16 +276,6 @@ void Chunk::Free(void* ptr) {
   } else {
     // TODO(ccross): move down free list if necessary
   }
-
-  if (frees_since_purge_++ * allocation_size_ > 16 * kPageSize) {
-    Purge();
-  }
-}
-
-void Chunk::Purge() {
-  frees_since_purge_ = 0;
-
-  // unsigned int allocsPerPage = kPageSize / allocation_size_;
 }
 
 // Override new operator on HeapImpl to use mmap to allocate a page
