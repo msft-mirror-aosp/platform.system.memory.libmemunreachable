@@ -50,9 +50,12 @@ constexpr size_t const_log2(size_t n, size_t p = 0) {
   return (n <= 1) ? p : const_log2(n / 2, p + 1);
 }
 
-static constexpr size_t kPageSize = 4096;
+constexpr unsigned int round_up_to_multiple(unsigned int x, unsigned int y) {
+  return y * ((x + y - 1) / y);
+}
+
+static const size_t kPageSize = getpagesize();
 static constexpr size_t kChunkSize = 256 * 1024;
-static constexpr size_t kUsableChunkSize = kChunkSize - kPageSize;
 static constexpr size_t kMaxBucketAllocationSize = kChunkSize / 4;
 static constexpr size_t kMinBucketAllocationSize = 8;
 static constexpr unsigned int kNumBuckets =
@@ -188,7 +191,7 @@ class Chunk {
   unsigned int free_count_;         // number of available allocations
 
   // bitmap of free allocations.
-  uint32_t free_bitmap_[kUsableChunkSize / kMinBucketAllocationSize / 32];
+  uint32_t free_bitmap_[kChunkSize / kMinBucketAllocationSize / 32];
 
   std::max_align_t data_[0];
 
@@ -197,10 +200,9 @@ class Chunk {
     return offset / allocation_size_;
   }
   void* n_to_ptr(unsigned int n) {
-    return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(data_) + n * allocation_size_);
+    return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(data_) + n * allocation_size_);
   }
 };
-static_assert(sizeof(Chunk) <= kPageSize, "header must fit in page");
 
 // Override new operator on chunk to use mmap to allocate kChunkSize
 void* Chunk::operator new(std::size_t count __attribute__((unused))) noexcept {
@@ -224,9 +226,11 @@ Chunk::Chunk(HeapImpl* heap, int bucket)
       heap_(heap),
       bucket_(bucket),
       allocation_size_(bucket_to_size(bucket)),
-      max_allocations_(kUsableChunkSize / allocation_size_),
-      first_free_bitmap_(0),
-      free_count_(max_allocations_) {
+      first_free_bitmap_(0) {
+  const size_t usable_chunk_size =
+          kChunkSize - round_up_to_multiple(sizeof(Chunk), sizeof(std::max_align_t));
+  max_allocations_ = usable_chunk_size / allocation_size_;
+  free_count_ = max_allocations_;
   memset(free_bitmap_, 0xff, sizeof(free_bitmap_));
 }
 
