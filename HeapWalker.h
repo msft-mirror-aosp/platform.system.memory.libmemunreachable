@@ -64,11 +64,11 @@ class HeapWalker {
     valid_mappings_range_.begin = ~valid_allocations_range_.end;
 
     sigsegv_handler_.install(
-        SIGSEGV, [=](ScopedSignalHandler& handler, int signal, siginfo_t* siginfo, void* uctx) {
+        SIGSEGV, [this](ScopedSignalHandler& handler, int signal, siginfo_t* siginfo, void* uctx) {
           this->HandleSegFault(handler, signal, siginfo, uctx);
         });
     sigbus_handler_.install(
-        SIGBUS, [=](ScopedSignalHandler& handler, int signal, siginfo_t* siginfo, void* uctx) {
+        SIGBUS, [this](ScopedSignalHandler& handler, int signal, siginfo_t* siginfo, void* uctx) {
           this->HandleSegFault(handler, signal, siginfo, uctx);
         });
   }
