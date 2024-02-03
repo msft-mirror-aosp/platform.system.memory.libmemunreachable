@@ -49,7 +49,7 @@ class HiddenPointer {
 
 // Trick the compiler into thinking a value on the stack is still referenced.
 static void Ref(void** ptr) {
-  void** volatile storage;
+  void** volatile storage [[maybe_unused]];
   storage = ptr;
 }
 
