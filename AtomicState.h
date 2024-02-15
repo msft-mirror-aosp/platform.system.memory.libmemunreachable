@@ -16,10 +16,10 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <functional>
-#include <mutex>
-#include <unordered_set>
+#include <thread>
 
 #include <gtest/gtest_prod.h>
 
@@ -39,55 +39,52 @@ class AtomicState {
   /*
    * Set the state to `to`.  Wakes up any waiters that are waiting on the new state.
    */
-  void set(T to) {
-    std::lock_guard<std::mutex> lock(m_);
-    state_ = to;
-    cv_.notify_all();
-  }
+  void set(T to) { state_.store(to); }
 
   /*
    * If the state is `from`, change it to `to` and return true.  Otherwise don't change
    * it and return false.  If the state is changed, wakes up any waiters that are waiting
    * on the new state.
    */
-  bool transition(T from, T to) {
-    return transition_or(from, to, [&] { return state_; });
-  }
+  bool transition(T from, T to) { return state_.compare_exchange_strong(from, to); }
 
   /*
    * If the state is `from`, change it to `to` and return true.  Otherwise, call `or_func`,
    * set the state to the value it returns and return false.  Wakes up any waiters that are
-   * waiting on the new state.
+   * waiting on the new state or on the state set by or_func.
    */
   bool transition_or(T from, T to, const std::function<T()>& orFunc) {
-    std::lock_guard<std::mutex> lock(m_);
-
-    bool failed = false;
-    if (state_ == from) {
-      state_ = to;
-    } else {
-      failed = true;
-      state_ = orFunc();
+    if (!state_.compare_exchange_strong(from, to)) {
+      state_.store(orFunc());
+      return false;
     }
-    cv_.notify_all();
-
-    return !failed;
+    return true;
   }
 
   /*
    * Block until the state is either `state1` or `state2`, or the time limit is reached.
-   * Returns true if the time limit was not reached, false if it was reached.
+   * Busy loops with short sleeps.  Returns true if the time limit was not reached, false
+   * if it was reached.
    */
-  bool wait_for_either_of(T state1, T state2, std::chrono::milliseconds ms) {
-    std::unique_lock<std::mutex> lock(m_);
-    bool success = cv_.wait_for(lock, ms, [&] { return state_ == state1 || state_ == state2; });
-    return success;
+  bool wait_for_either_of(T state1, T state2, std::chrono::nanoseconds timeout) {
+    using namespace std::chrono_literals;
+    auto end = std::chrono::steady_clock::now() + timeout;
+    const std::chrono::nanoseconds sleep_time = 500us;
+    while (true) {
+      T state = state_.load();
+      if (state == state1 || state == state2) {
+        return true;
+      }
+      auto now = std::chrono::steady_clock::now();
+      if (now > end) {
+        return false;
+      }
+      std::this_thread::sleep_for(std::min(sleep_time, end - now));
+    }
   }
 
  private:
-  T state_;
-  std::mutex m_;
-  std::condition_variable cv_;
+  std::atomic<T> state_;
 
   FRIEND_TEST(AtomicStateTest, transition);
   FRIEND_TEST(AtomicStateTest, wait);
