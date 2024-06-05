@@ -50,7 +50,7 @@ class ScopedSignalHandler {
     }
 
     (*handler_map_)[signal] =
-        SignalFn([=](int signal, siginfo_t* si, void* uctx) { f(*this, signal, si, uctx); });
+        SignalFn([=, this](int signal, siginfo_t* si, void* uctx) { f(*this, signal, si, uctx); });
 
     struct sigaction act {};
     act.sa_sigaction = [](int signal, siginfo_t* si, void* uctx) {
