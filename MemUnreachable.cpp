@@ -40,6 +40,7 @@
 #include "ScopedDisableMalloc.h"
 #include "ThreadCapture.h"
 
+#include <bionic/mte.h>
 #include "bionic.h"
 #include "log.h"
 #include "memunreachable/memunreachable.h"
@@ -197,6 +198,7 @@ bool MemUnreachable::GetUnreachableMemory(allocator::vector<Leak>& leaks, size_t
     leak->referenced_count = it.referenced_count;
     leak->referenced_size = it.referenced_size;
     leak->total_size = leak->size + leak->referenced_size;
+    ScopedDisableMTE x;  // b/469268729 - memcpy below triggers MTE
     memcpy(leak->contents, reinterpret_cast<void*>(it.range.begin),
            std::min(leak->size, Leak::contents_length));
   }
